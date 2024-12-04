@@ -154,7 +154,7 @@ export const getEmbedLink = (
     return { link, intrinsicSize: aspectRatio, type };
   }
 
-  if (RE_TWITTER.test(link)) {
+  if (!(window as any).DISABLE_EMBEDDED && RE_TWITTER.test(link)) {
     let ret: IframeData;
     // assume embed code
     if (/<blockquote/.test(link)) {
@@ -179,7 +179,7 @@ export const getEmbedLink = (
     return ret;
   }
 
-  if (RE_GH_GIST.test(link)) {
+  if (!(window as any).DISABLE_EMBEDDED && RE_GH_GIST.test(link)) {
     let ret: IframeData;
     // assume embed code
     if (/<script>/.test(link)) {
