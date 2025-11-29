@@ -28,3 +28,12 @@ packages/excalidraw/example/public/excalidraw.development.js
 coverage
 dev-dist
 html
+<<<<<<< Updated upstream
+||||||| Stash base
+examples/**/bundle.*
+meta*.json
+=======
+examples/**/bundle.*
+meta*.json
+.kiro/
+>>>>>>> Stashed changes
