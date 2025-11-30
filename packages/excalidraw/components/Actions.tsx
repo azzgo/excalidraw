@@ -1220,6 +1220,7 @@ export const ShapesSwitcher = ({
           >
             {t("toolBar.frame")}
           </DropdownMenu.Item>
+          {/* CSP compliance: Hide embeddable tool when DISABLE_EMBEDDED is set */}
           {!(window as any).DISABLE_EMBEDDED && <DropdownMenu.Item
             onSelect={() => app.setActiveTool({ type: "embeddable" })}
             icon={EmbedIcon}

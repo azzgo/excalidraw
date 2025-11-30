@@ -268,7 +268,8 @@ export const getEmbedLink = (
     return ret;
   }
 
-  if (RE_REDDIT.test(link)) {
+  // CSP compliance: Skip Reddit embed if DISABLE_EMBEDDED is set
+  if (!(window as any).DISABLE_EMBEDDED && RE_REDDIT.test(link)) {
     const [, page, postId, title] = link.match(RE_REDDIT)!;
     const safeURL = escapeDoubleQuotes(
       `https://reddit.com/r/${page}/comments/${postId}/${title}`,
