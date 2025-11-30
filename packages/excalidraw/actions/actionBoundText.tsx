@@ -1,42 +1,59 @@
 import {
   BOUND_TEXT_PADDING,
   ROUNDNESS,
-  VERTICAL_ALIGN,
   TEXT_ALIGN,
-} from "../constants";
-import { isTextElement, newElement } from "../element";
-import { mutateElement } from "../element/mutateElement";
+  VERTICAL_ALIGN,
+  arrayToMap,
+  getFontString,
+} from "@excalidraw/common";
+import {
+  getOriginalContainerHeightFromCache,
+  isBoundToContainer,
+  resetOriginalContainerCache,
+  updateOriginalContainerCache,
+} from "@excalidraw/element";
+
 import {
   computeBoundTextPosition,
   computeContainerDimensionForBoundText,
   getBoundTextElement,
-  measureText,
   redrawTextBoundingBox,
-} from "../element/textElement";
-import {
-  getOriginalContainerHeightFromCache,
-  resetOriginalContainerCache,
-  updateOriginalContainerCache,
-} from "../element/textWysiwyg";
+} from "@excalidraw/element";
+
 import {
   hasBoundTextElement,
+  isArrowElement,
   isTextBindableContainer,
+  isTextElement,
   isUsingAdaptiveRadius,
-} from "../element/typeChecks";
-import {
+} from "@excalidraw/element";
+
+import { measureText } from "@excalidraw/element";
+
+import { syncMovedIndices } from "@excalidraw/element";
+
+import { newElement } from "@excalidraw/element";
+
+import { CaptureUpdateAction } from "@excalidraw/element";
+
+import type {
   ExcalidrawElement,
   ExcalidrawLinearElement,
   ExcalidrawTextContainer,
   ExcalidrawTextElement,
-} from "../element/types";
-import { AppState } from "../types";
-import { Mutable } from "../utility-types";
-import { getFontString } from "../utils";
+} from "@excalidraw/element/types";
+
+import type { Mutable } from "@excalidraw/common/utility-types";
+
+import type { Radians } from "@excalidraw/math";
+
 import { register } from "./register";
+
+import type { AppState } from "../types";
 
 export const actionUnbindText = register({
   name: "unbindText",
-  contextItemLabel: "labels.unbindText",
+  label: "labels.unbindText",
   trackEvent: { category: "element" },
   predicate: (elements, appState, _, app) => {
     const selectedElements = app.scene.getSelectedElements(appState);
@@ -45,10 +62,11 @@ export const actionUnbindText = register({
   },
   perform: (elements, appState, _, app) => {
     const selectedElements = app.scene.getSelectedElements(appState);
+    const elementsMap = app.scene.getNonDeletedElementsMap();
     selectedElements.forEach((element) => {
-      const boundTextElement = getBoundTextElement(element);
+      const boundTextElement = getBoundTextElement(element, elementsMap);
       if (boundTextElement) {
-        const { width, height, baseline } = measureText(
+        const { width, height } = measureText(
           boundTextElement.originalText,
           getFontString(boundTextElement),
           boundTextElement.lineHeight,
@@ -57,17 +75,20 @@ export const actionUnbindText = register({
           element.id,
         );
         resetOriginalContainerCache(element.id);
-        const { x, y } = computeBoundTextPosition(element, boundTextElement);
-        mutateElement(boundTextElement as ExcalidrawTextElement, {
+        const { x, y } = computeBoundTextPosition(
+          element,
+          boundTextElement,
+          elementsMap,
+        );
+        app.scene.mutateElement(boundTextElement as ExcalidrawTextElement, {
           containerId: null,
           width,
           height,
-          baseline,
           text: boundTextElement.originalText,
           x,
           y,
         });
-        mutateElement(element, {
+        app.scene.mutateElement(element, {
           boundElements: element.boundElements?.filter(
             (ele) => ele.id !== boundTextElement.id,
           ),
@@ -80,14 +101,14 @@ export const actionUnbindText = register({
     return {
       elements,
       appState,
-      commitToHistory: true,
+      captureUpdate: CaptureUpdateAction.IMMEDIATELY,
     };
   },
 });
 
 export const actionBindText = register({
   name: "bindText",
-  contextItemLabel: "labels.bindText",
+  label: "labels.bindText",
   trackEvent: { category: "element" },
   predicate: (elements, appState, _, app) => {
     const selectedElements = app.scene.getSelectedElements(appState);
@@ -106,7 +127,10 @@ export const actionBindText = register({
       if (
         textElement &&
         bindingContainer &&
-        getBoundTextElement(bindingContainer) === null
+        getBoundTextElement(
+          bindingContainer,
+          app.scene.getNonDeletedElementsMap(),
+        ) === null
       ) {
         return true;
       }
@@ -129,19 +153,21 @@ export const actionBindText = register({
       textElement = selectedElements[1] as ExcalidrawTextElement;
       container = selectedElements[0] as ExcalidrawTextContainer;
     }
-    mutateElement(textElement, {
+    app.scene.mutateElement(textElement, {
       containerId: container.id,
       verticalAlign: VERTICAL_ALIGN.MIDDLE,
       textAlign: TEXT_ALIGN.CENTER,
+      autoResize: true,
+      angle: (isArrowElement(container) ? 0 : container?.angle ?? 0) as Radians,
     });
-    mutateElement(container, {
+    app.scene.mutateElement(container, {
       boundElements: (container.boundElements || []).concat({
         type: "text",
         id: textElement.id,
       }),
     });
     const originalContainerHeight = container.height;
-    redrawTextBoundingBox(textElement, container);
+    redrawTextBoundingBox(textElement, container, app.scene);
     // overwritting the cache with original container height so
     // it can be restored when unbind
     updateOriginalContainerCache(container.id, originalContainerHeight);
@@ -149,7 +175,7 @@ export const actionBindText = register({
     return {
       elements: pushTextAboveContainer(elements, container, textElement),
       appState: { ...appState, selectedElementIds: { [container.id]: true } },
-      commitToHistory: true,
+      captureUpdate: CaptureUpdateAction.IMMEDIATELY,
     };
   },
 });
@@ -169,6 +195,8 @@ const pushTextAboveContainer = (
     (ele) => ele.id === container.id,
   );
   updatedElements.splice(containerIndex + 1, 0, textElement);
+  syncMovedIndices(updatedElements, arrayToMap([container, textElement]));
+
   return updatedElements;
 };
 
@@ -187,17 +215,21 @@ const pushContainerBelowText = (
     (ele) => ele.id === textElement.id,
   );
   updatedElements.splice(textElementIndex, 0, container);
+  syncMovedIndices(updatedElements, arrayToMap([container, textElement]));
+
   return updatedElements;
 };
 
 export const actionWrapTextInContainer = register({
   name: "wrapTextInContainer",
-  contextItemLabel: "labels.createContainerFromText",
+  label: "labels.createContainerFromText",
   trackEvent: { category: "element" },
   predicate: (elements, appState, _, app) => {
     const selectedElements = app.scene.getSelectedElements(appState);
-    const areTextElements = selectedElements.every((el) => isTextElement(el));
-    return selectedElements.length > 0 && areTextElements;
+    const someTextElements = selectedElements.some(
+      (el) => isTextElement(el) && !isBoundToContainer(el),
+    );
+    return selectedElements.length > 0 && someTextElements;
   },
   perform: (elements, appState, _, app) => {
     const selectedElements = app.scene.getSelectedElements(appState);
@@ -205,7 +237,7 @@ export const actionWrapTextInContainer = register({
     const containerIds: Mutable<AppState["selectedElementIds"]> = {};
 
     for (const textElement of selectedElements) {
-      if (isTextElement(textElement)) {
+      if (isTextElement(textElement) && !isBoundToContainer(textElement)) {
         const container = newElement({
           type: "rectangle",
           backgroundColor: appState.currentItemBackgroundColor,
@@ -267,28 +299,30 @@ export const actionWrapTextInContainer = register({
             }
 
             if (startBinding || endBinding) {
-              mutateElement(ele, { startBinding, endBinding }, false);
+              app.scene.mutateElement(ele, {
+                startBinding,
+                endBinding,
+              });
             }
           });
         }
 
-        mutateElement(
-          textElement,
-          {
-            containerId: container.id,
-            verticalAlign: VERTICAL_ALIGN.MIDDLE,
-            boundElements: null,
-            textAlign: TEXT_ALIGN.CENTER,
-          },
-          false,
-        );
-        redrawTextBoundingBox(textElement, container);
+        app.scene.mutateElement(textElement, {
+          containerId: container.id,
+          verticalAlign: VERTICAL_ALIGN.MIDDLE,
+          boundElements: null,
+          textAlign: TEXT_ALIGN.CENTER,
+          autoResize: true,
+        });
+
+        redrawTextBoundingBox(textElement, container, app.scene);
 
         updatedElements = pushContainerBelowText(
           [...updatedElements, container],
           container,
           textElement,
         );
+
         containerIds[container.id] = true;
       }
     }
@@ -299,7 +333,7 @@ export const actionWrapTextInContainer = register({
         ...appState,
         selectedElementIds: containerIds,
       },
-      commitToHistory: true,
+      captureUpdate: CaptureUpdateAction.IMMEDIATELY,
     };
   },
 });

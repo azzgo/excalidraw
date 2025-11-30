@@ -1,8 +1,10 @@
+import { isDevEnv } from "@excalidraw/common";
+
+import type { NestedKeyOf } from "@excalidraw/common/utility-types";
+
+import { useAtomValue, editorJotaiStore, atom } from "./editor-jotai";
 import fallbackLangData from "./locales/en.json";
 import percentages from "./locales/percentages.json";
-import { jotaiScope, jotaiStore } from "./jotai";
-import { atom, useAtomValue } from "jotai";
-import { NestedKeyOf } from "./utility-types";
 
 const COMPLETION_THRESHOLD = 85;
 
@@ -73,7 +75,7 @@ export const languages: Language[] = [
 ];
 
 const TEST_LANG_CODE = "__test__";
-if (import.meta.env.DEV) {
+if (isDevEnv()) {
   languages.unshift(
     { code: TEST_LANG_CODE, label: "test language" },
     {
@@ -96,16 +98,14 @@ export const setLanguage = async (lang: Language) => {
     currentLangData = {};
   } else {
     try {
-      currentLangData = await import(
-        /* webpackChunkName: "locales/[request]" */ `./locales/${currentLang.code}.json`
-      );
+      currentLangData = await import(`./locales/${currentLang.code}.json`);
     } catch (error: any) {
       console.error(`Failed to load language ${lang.code}:`, error.message);
       currentLangData = fallbackLangData;
     }
   }
 
-  jotaiStore.set(editorLangCodeAtom, lang.code);
+  editorJotaiStore.set(editorLangCodeAtom, lang.code);
 };
 
 export const getLanguage = () => currentLang;
@@ -167,6 +167,6 @@ const editorLangCodeAtom = atom(defaultLang.code);
 // - component is rendered internally by <Excalidraw>, but the component
 //   is memoized w/o being updated on `langCode`, `AppState`, or `UIAppState`
 export const useI18n = () => {
-  const langCode = useAtomValue(editorLangCodeAtom, jotaiScope);
+  const langCode = useAtomValue(editorLangCodeAtom);
   return { t, langCode };
 };

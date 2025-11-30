@@ -1,30 +1,50 @@
 import React, { useEffect, useRef } from "react";
-import { renderInteractiveScene } from "../../renderer/renderScene";
+
 import {
-  isRenderThrottlingEnabled,
+  CURSOR_TYPE,
   isShallowEqual,
   sceneCoordsToViewportCoords,
-} from "../../utils";
-import { CURSOR_TYPE } from "../../constants";
-import { t } from "../../i18n";
-import type { DOMAttributes } from "react";
-import type { AppState, InteractiveCanvasAppState } from "../../types";
+  type EditorInterface,
+} from "@excalidraw/common";
+import { AnimationController } from "@excalidraw/excalidraw/renderer/animation";
+
 import type {
   InteractiveCanvasRenderConfig,
+  InteractiveSceneRenderAnimationState,
+  InteractiveSceneRenderConfig,
+  RenderableElementsMap,
   RenderInteractiveSceneCallback,
-} from "../../scene/types";
-import type { NonDeletedExcalidrawElement } from "../../element/types";
+} from "@excalidraw/excalidraw/scene/types";
+
+import type {
+  NonDeletedExcalidrawElement,
+  NonDeletedSceneElementsMap,
+} from "@excalidraw/element/types";
+
+import { t } from "../../i18n";
+import { renderInteractiveScene } from "../../renderer/interactiveScene";
+
+import type {
+  AppClassProperties,
+  AppState,
+  InteractiveCanvasAppState,
+} from "../../types";
+import type { DOMAttributes } from "react";
 
 type InteractiveCanvasProps = {
-  containerRef: React.RefObject<HTMLDivElement>;
+  containerRef: React.RefObject<HTMLDivElement | null>;
   canvas: HTMLCanvasElement | null;
-  elements: readonly NonDeletedExcalidrawElement[];
+  elementsMap: RenderableElementsMap;
   visibleElements: readonly NonDeletedExcalidrawElement[];
   selectedElements: readonly NonDeletedExcalidrawElement[];
-  versionNonce: number | undefined;
+  allElementsMap: NonDeletedSceneElementsMap;
+  sceneNonce: number | undefined;
   selectionNonce: number | undefined;
   scale: number;
   appState: InteractiveCanvasAppState;
+  renderScrollbars: boolean;
+  editorInterface: EditorInterface;
+  app: AppClassProperties;
   renderInteractiveSceneCallback: (
     data: RenderInteractiveSceneCallback,
   ) => void;
@@ -59,8 +79,11 @@ type InteractiveCanvasProps = {
   >;
 };
 
+export const INTERACTIVE_SCENE_ANIMATION_KEY = "animateInteractiveScene";
+
 const InteractiveCanvas = (props: InteractiveCanvasProps) => {
   const isComponentMounted = useRef(false);
+  const rendererParams = useRef(null as InteractiveSceneRenderConfig | null);
 
   useEffect(() => {
     if (!isComponentMounted.current) {
@@ -68,42 +91,46 @@ const InteractiveCanvas = (props: InteractiveCanvasProps) => {
       return;
     }
 
-    const cursorButton: {
-      [id: string]: string | undefined;
-    } = {};
-    const pointerViewportCoords: InteractiveCanvasRenderConfig["remotePointerViewportCoords"] =
-      {};
+    const remotePointerButton: InteractiveCanvasRenderConfig["remotePointerButton"] =
+      new Map();
+    const remotePointerViewportCoords: InteractiveCanvasRenderConfig["remotePointerViewportCoords"] =
+      new Map();
     const remoteSelectedElementIds: InteractiveCanvasRenderConfig["remoteSelectedElementIds"] =
-      {};
-    const pointerUsernames: { [id: string]: string } = {};
-    const pointerUserStates: { [id: string]: string } = {};
+      new Map();
+    const remotePointerUsernames: InteractiveCanvasRenderConfig["remotePointerUsernames"] =
+      new Map();
+    const remotePointerUserStates: InteractiveCanvasRenderConfig["remotePointerUserStates"] =
+      new Map();
 
     props.appState.collaborators.forEach((user, socketId) => {
       if (user.selectedElementIds) {
         for (const id of Object.keys(user.selectedElementIds)) {
-          if (!(id in remoteSelectedElementIds)) {
-            remoteSelectedElementIds[id] = [];
+          if (!remoteSelectedElementIds.has(id)) {
+            remoteSelectedElementIds.set(id, []);
           }
-          remoteSelectedElementIds[id].push(socketId);
+          remoteSelectedElementIds.get(id)!.push(socketId);
         }
       }
-      if (!user.pointer) {
+      if (!user.pointer || user.pointer.renderCursor === false) {
         return;
       }
       if (user.username) {
-        pointerUsernames[socketId] = user.username;
+        remotePointerUsernames.set(socketId, user.username);
       }
       if (user.userState) {
-        pointerUserStates[socketId] = user.userState;
+        remotePointerUserStates.set(socketId, user.userState);
       }
-      pointerViewportCoords[socketId] = sceneCoordsToViewportCoords(
-        {
-          sceneX: user.pointer.x,
-          sceneY: user.pointer.y,
-        },
-        props.appState,
+      remotePointerViewportCoords.set(
+        socketId,
+        sceneCoordsToViewportCoords(
+          {
+            sceneX: user.pointer.x,
+            sceneY: user.pointer.y,
+          },
+          props.appState,
+        ),
       );
-      cursorButton[socketId] = user.button;
+      remotePointerButton.set(socketId, user.button);
     });
 
     const selectionColor =
@@ -113,27 +140,60 @@ const InteractiveCanvas = (props: InteractiveCanvasProps) => {
         )) ||
       "#6965db";
 
-    renderInteractiveScene(
-      {
-        canvas: props.canvas,
-        elements: props.elements,
-        visibleElements: props.visibleElements,
-        selectedElements: props.selectedElements,
-        scale: window.devicePixelRatio,
-        appState: props.appState,
-        renderConfig: {
-          remotePointerViewportCoords: pointerViewportCoords,
-          remotePointerButton: cursorButton,
-          remoteSelectedElementIds,
-          remotePointerUsernames: pointerUsernames,
-          remotePointerUserStates: pointerUserStates,
-          selectionColor,
-          renderScrollbars: false,
-        },
-        callback: props.renderInteractiveSceneCallback,
+    rendererParams.current = {
+      app: props.app,
+      canvas: props.canvas,
+      elementsMap: props.elementsMap,
+      visibleElements: props.visibleElements,
+      selectedElements: props.selectedElements,
+      allElementsMap: props.allElementsMap,
+      scale: window.devicePixelRatio,
+      appState: props.appState,
+      renderConfig: {
+        remotePointerViewportCoords,
+        remotePointerButton,
+        remoteSelectedElementIds,
+        remotePointerUsernames,
+        remotePointerUserStates,
+        selectionColor,
+        renderScrollbars: props.renderScrollbars,
+        // NOTE not memoized on so we don't rerender on cursor move
+        lastViewportPosition: props.app.lastViewportPosition,
       },
-      isRenderThrottlingEnabled(),
-    );
+      editorInterface: props.editorInterface,
+      callback: props.renderInteractiveSceneCallback,
+      animationState: {
+        bindingHighlight: undefined,
+      },
+      deltaTime: 0,
+    };
+
+    if (!AnimationController.running(INTERACTIVE_SCENE_ANIMATION_KEY)) {
+      AnimationController.start<InteractiveSceneRenderAnimationState>(
+        INTERACTIVE_SCENE_ANIMATION_KEY,
+        ({ deltaTime, state }) => {
+          const nextAnimationState = renderInteractiveScene({
+            ...rendererParams.current!,
+            deltaTime,
+            animationState: state,
+          }).animationState;
+
+          if (nextAnimationState) {
+            for (const key in nextAnimationState) {
+              if (
+                nextAnimationState[
+                  key as keyof InteractiveSceneRenderAnimationState
+                ] !== undefined
+              ) {
+                return nextAnimationState;
+              }
+            }
+          }
+
+          return undefined;
+        },
+      );
+    }
   });
 
   return (
@@ -173,26 +233,35 @@ const getRelevantAppStateProps = (
   width: appState.width,
   height: appState.height,
   viewModeEnabled: appState.viewModeEnabled,
+  openDialog: appState.openDialog,
   editingGroupId: appState.editingGroupId,
-  editingLinearElement: appState.editingLinearElement,
   selectedElementIds: appState.selectedElementIds,
   frameToHighlight: appState.frameToHighlight,
   offsetLeft: appState.offsetLeft,
   offsetTop: appState.offsetTop,
   theme: appState.theme,
-  pendingImageElementId: appState.pendingImageElementId,
   selectionElement: appState.selectionElement,
   selectedGroupIds: appState.selectedGroupIds,
   selectedLinearElement: appState.selectedLinearElement,
   multiElement: appState.multiElement,
+  newElement: appState.newElement,
   isBindingEnabled: appState.isBindingEnabled,
-  suggestedBindings: appState.suggestedBindings,
+  suggestedBinding: appState.suggestedBinding,
   isRotating: appState.isRotating,
   elementsToHighlight: appState.elementsToHighlight,
   collaborators: appState.collaborators, // Necessary for collab. sessions
   activeEmbeddable: appState.activeEmbeddable,
   snapLines: appState.snapLines,
   zenModeEnabled: appState.zenModeEnabled,
+  editingTextElement: appState.editingTextElement,
+  isCropping: appState.isCropping,
+  croppingElementId: appState.croppingElementId,
+  searchMatches: appState.searchMatches,
+  activeLockedId: appState.activeLockedId,
+  hoveredElementIds: appState.hoveredElementIds,
+  frameRendering: appState.frameRendering,
+  shouldCacheIgnoreZoom: appState.shouldCacheIgnoreZoom,
+  exportScale: appState.exportScale,
 });
 
 const areEqual = (
@@ -202,14 +271,15 @@ const areEqual = (
   // This could be further optimised if needed, as we don't have to render interactive canvas on each scene mutation
   if (
     prevProps.selectionNonce !== nextProps.selectionNonce ||
-    prevProps.versionNonce !== nextProps.versionNonce ||
+    prevProps.sceneNonce !== nextProps.sceneNonce ||
     prevProps.scale !== nextProps.scale ||
-    // we need to memoize on element arrays because they may have renewed
-    // even if versionNonce didn't change (e.g. we filter elements out based
+    // we need to memoize on elementsMap because they may have renewed
+    // even if sceneNonce didn't change (e.g. we filter elements out based
     // on appState)
-    prevProps.elements !== nextProps.elements ||
+    prevProps.elementsMap !== nextProps.elementsMap ||
     prevProps.visibleElements !== nextProps.visibleElements ||
-    prevProps.selectedElements !== nextProps.selectedElements
+    prevProps.selectedElements !== nextProps.selectedElements ||
+    prevProps.renderScrollbars !== nextProps.renderScrollbars
   ) {
     return false;
   }

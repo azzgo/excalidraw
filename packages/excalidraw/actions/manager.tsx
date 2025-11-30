@@ -1,5 +1,16 @@
 import React from "react";
-import {
+
+import { isPromiseLike } from "@excalidraw/common";
+
+import type {
+  ExcalidrawElement,
+  OrderedExcalidrawElement,
+} from "@excalidraw/element/types";
+
+import { trackEvent } from "../analytics";
+
+import type { AppClassProperties, AppState } from "../types";
+import type {
   Action,
   UpdaterFn,
   ActionName,
@@ -7,9 +18,6 @@ import {
   PanelComponentProps,
   ActionSource,
 } from "./types";
-import { ExcalidrawElement } from "../element/types";
-import { AppClassProperties, AppState } from "../types";
-import { trackEvent } from "../analytics";
 
 const trackAction = (
   action: Action,
@@ -29,7 +37,9 @@ const trackAction = (
           trackEvent(
             action.trackEvent.category,
             action.trackEvent.action || action.name,
-            `${source} (${app.device.editor.isMobile ? "mobile" : "desktop"})`,
+            `${source} (${
+              app.editorInterface.formFactor === "phone" ? "mobile" : "desktop"
+            })`,
           );
         }
       }
@@ -45,17 +55,17 @@ export class ActionManager {
   updater: (actionResult: ActionResult | Promise<ActionResult>) => void;
 
   getAppState: () => Readonly<AppState>;
-  getElementsIncludingDeleted: () => readonly ExcalidrawElement[];
+  getElementsIncludingDeleted: () => readonly OrderedExcalidrawElement[];
   app: AppClassProperties;
 
   constructor(
     updater: UpdaterFn,
     getAppState: () => AppState,
-    getElementsIncludingDeleted: () => readonly ExcalidrawElement[],
+    getElementsIncludingDeleted: () => readonly OrderedExcalidrawElement[],
     app: AppClassProperties,
   ) {
     this.updater = (actionResult) => {
-      if (actionResult && "then" in actionResult) {
+      if (isPromiseLike(actionResult)) {
         actionResult.then((actionResult) => {
           return updater(actionResult);
         });
@@ -171,6 +181,7 @@ export class ActionManager {
           appProps={this.app.props}
           app={this.app}
           data={data}
+          renderAction={this.renderAction}
         />
       );
     }

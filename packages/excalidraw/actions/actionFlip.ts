@@ -1,60 +1,88 @@
-import { register } from "./register";
+import { getNonDeletedElements } from "@excalidraw/element";
+import { bindOrUnbindBindingElements } from "@excalidraw/element";
+import { getCommonBoundingBox } from "@excalidraw/element";
+import { newElementWith } from "@excalidraw/element";
+import { deepCopyElement } from "@excalidraw/element";
+import { resizeMultipleElements } from "@excalidraw/element";
+import { isArrowElement, isElbowArrow } from "@excalidraw/element";
+import { updateFrameMembershipOfSelectedElements } from "@excalidraw/element";
+import { CODES, KEYS, arrayToMap } from "@excalidraw/common";
+
+import { CaptureUpdateAction } from "@excalidraw/element";
+
+import type {
+  ExcalidrawArrowElement,
+  ExcalidrawElbowArrowElement,
+  ExcalidrawElement,
+  NonDeleted,
+  NonDeletedSceneElementsMap,
+} from "@excalidraw/element/types";
+
 import { getSelectedElements } from "../scene";
-import { getNonDeletedElements } from "../element";
-import { ExcalidrawElement, NonDeleted } from "../element/types";
-import { resizeMultipleElements } from "../element/resizeElements";
-import { AppState, PointerDownState } from "../types";
-import { arrayToMap } from "../utils";
-import { CODES, KEYS } from "../keys";
-import { getCommonBoundingBox } from "../element/bounds";
-import {
-  bindOrUnbindSelectedElements,
-  isBindingEnabled,
-  unbindLinearElements,
-} from "../element/binding";
-import { updateFrameMembershipOfSelectedElements } from "../frame";
+
+import { flipHorizontal, flipVertical } from "../components/icons";
+
+import { register } from "./register";
+
+import type { AppClassProperties, AppState } from "../types";
 
 export const actionFlipHorizontal = register({
   name: "flipHorizontal",
+  label: "labels.flipHorizontal",
+  icon: flipHorizontal,
   trackEvent: { category: "element" },
   perform: (elements, appState, _, app) => {
     return {
       elements: updateFrameMembershipOfSelectedElements(
-        flipSelectedElements(elements, appState, "horizontal"),
+        flipSelectedElements(
+          elements,
+          app.scene.getNonDeletedElementsMap(),
+          appState,
+          "horizontal",
+          app,
+        ),
         appState,
         app,
       ),
       appState,
-      commitToHistory: true,
+      captureUpdate: CaptureUpdateAction.IMMEDIATELY,
     };
   },
   keyTest: (event) => event.shiftKey && event.code === CODES.H,
-  contextItemLabel: "labels.flipHorizontal",
 });
 
 export const actionFlipVertical = register({
   name: "flipVertical",
+  label: "labels.flipVertical",
+  icon: flipVertical,
   trackEvent: { category: "element" },
   perform: (elements, appState, _, app) => {
     return {
       elements: updateFrameMembershipOfSelectedElements(
-        flipSelectedElements(elements, appState, "vertical"),
+        flipSelectedElements(
+          elements,
+          app.scene.getNonDeletedElementsMap(),
+          appState,
+          "vertical",
+          app,
+        ),
         appState,
         app,
       ),
       appState,
-      commitToHistory: true,
+      captureUpdate: CaptureUpdateAction.IMMEDIATELY,
     };
   },
   keyTest: (event) =>
     event.shiftKey && event.code === CODES.V && !event[KEYS.CTRL_OR_CMD],
-  contextItemLabel: "labels.flipVertical",
 });
 
 const flipSelectedElements = (
   elements: readonly ExcalidrawElement[],
+  elementsMap: NonDeletedSceneElementsMap,
   appState: Readonly<AppState>,
   flipDirection: "horizontal" | "vertical",
+  app: AppClassProperties,
 ) => {
   const selectedElements = getSelectedElements(
     getNonDeletedElements(elements),
@@ -67,8 +95,9 @@ const flipSelectedElements = (
 
   const updatedElements = flipElements(
     selectedElements,
-    appState,
+    elementsMap,
     flipDirection,
+    app,
   );
 
   const updatedElementsMap = arrayToMap(updatedElements);
@@ -79,24 +108,89 @@ const flipSelectedElements = (
 };
 
 const flipElements = (
-  elements: NonDeleted<ExcalidrawElement>[],
-  appState: AppState,
+  selectedElements: NonDeleted<ExcalidrawElement>[],
+  elementsMap: NonDeletedSceneElementsMap,
   flipDirection: "horizontal" | "vertical",
+  app: AppClassProperties,
 ): ExcalidrawElement[] => {
-  const { minX, minY, maxX, maxY } = getCommonBoundingBox(elements);
+  if (
+    selectedElements.every(
+      (element) =>
+        isArrowElement(element) && (element.startBinding || element.endBinding),
+    )
+  ) {
+    return selectedElements.map((element) => {
+      const _element = element as ExcalidrawArrowElement;
+      return newElementWith(_element, {
+        startArrowhead: _element.endArrowhead,
+        endArrowhead: _element.startArrowhead,
+      });
+    });
+  }
+
+  const { midX, midY } = getCommonBoundingBox(selectedElements);
 
   resizeMultipleElements(
-    { originalElements: arrayToMap(elements) } as PointerDownState,
-    elements,
+    selectedElements,
+    elementsMap,
     "nw",
-    true,
-    flipDirection === "horizontal" ? maxX : minX,
-    flipDirection === "horizontal" ? minY : maxY,
+    app.scene,
+    new Map(
+      Array.from(elementsMap.values()).map((element) => [
+        element.id,
+        deepCopyElement(element),
+      ]),
+    ),
+    {
+      flipByX: flipDirection === "horizontal",
+      flipByY: flipDirection === "vertical",
+      shouldResizeFromCenter: true,
+      shouldMaintainAspectRatio: true,
+    },
   );
 
-  (isBindingEnabled(appState)
-    ? bindOrUnbindSelectedElements
-    : unbindLinearElements)(elements);
+  bindOrUnbindBindingElements(
+    selectedElements.filter(isArrowElement),
+    app.scene,
+    app.state,
+  );
 
-  return elements;
+  // ---------------------------------------------------------------------------
+  // flipping arrow elements (and potentially other) makes the selection group
+  // "move" across the canvas because of how arrows can bump against the "wall"
+  // of the selection, so we need to center the group back to the original
+  // position so that repeated flips don't accumulate the offset
+
+  const { elbowArrows, otherElements } = selectedElements.reduce(
+    (
+      acc: {
+        elbowArrows: ExcalidrawElbowArrowElement[];
+        otherElements: ExcalidrawElement[];
+      },
+      element,
+    ) =>
+      isElbowArrow(element)
+        ? { ...acc, elbowArrows: acc.elbowArrows.concat(element) }
+        : { ...acc, otherElements: acc.otherElements.concat(element) },
+    { elbowArrows: [], otherElements: [] },
+  );
+
+  const { midX: newMidX, midY: newMidY } =
+    getCommonBoundingBox(selectedElements);
+  const [diffX, diffY] = [midX - newMidX, midY - newMidY];
+  otherElements.forEach((element) =>
+    app.scene.mutateElement(element, {
+      x: element.x + diffX,
+      y: element.y + diffY,
+    }),
+  );
+  elbowArrows.forEach((element) =>
+    app.scene.mutateElement(element, {
+      x: element.x + diffX,
+      y: element.y + diffY,
+    }),
+  );
+  // ---------------------------------------------------------------------------
+
+  return selectedElements;
 };

@@ -1,5 +1,8 @@
 import clsx from "clsx";
-import { composeEventHandlers } from "../utils";
+import React from "react";
+
+import { composeEventHandlers } from "@excalidraw/common";
+
 import "./Button.scss";
 
 interface ButtonProps

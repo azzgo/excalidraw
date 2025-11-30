@@ -1,17 +1,20 @@
-import { fileOpen, fileSave } from "./filesystem";
-import { cleanAppStateForExport, clearAppStateForDatabase } from "../appState";
 import {
+  DEFAULT_FILENAME,
   EXPORT_DATA_TYPES,
-  EXPORT_SOURCE,
+  getExportSource,
   MIME_TYPES,
   VERSIONS,
-} from "../constants";
-import { clearElementsForDatabase, clearElementsForExport } from "../element";
-import { ExcalidrawElement } from "../element/types";
-import { AppState, BinaryFiles, LibraryItems } from "../types";
-import { isImageFileHandle, loadFromBlob, normalizeFile } from "./blob";
+} from "@excalidraw/common";
 
-import {
+import type { ExcalidrawElement } from "@excalidraw/element/types";
+
+import { cleanAppStateForExport, clearAppStateForDatabase } from "../appState";
+
+import { isImageFileHandle, loadFromBlob } from "./blob";
+import { fileOpen, fileSave } from "./filesystem";
+
+import type { AppState, BinaryFiles, LibraryItems } from "../types";
+import type {
   ExportedDataState,
   ImportedDataState,
   ExportedLibraryData,
@@ -48,11 +51,8 @@ export const serializeAsJSON = (
   const data: ExportedDataState = {
     type: EXPORT_DATA_TYPES.excalidraw,
     version: VERSIONS.excalidraw,
-    source: EXPORT_SOURCE,
-    elements:
-      type === "local"
-        ? clearElementsForExport(elements)
-        : clearElementsForDatabase(elements),
+    source: getExportSource(),
+    elements,
     appState:
       type === "local"
         ? cleanAppStateForExport(appState)
@@ -71,6 +71,8 @@ export const saveAsJSON = async (
   elements: readonly ExcalidrawElement[],
   appState: AppState,
   files: BinaryFiles,
+  /** filename */
+  name: string = appState.name || DEFAULT_FILENAME,
 ) => {
   const serialized = serializeAsJSON(elements, appState, files, "local");
   const blob = new Blob([serialized], {
@@ -78,7 +80,7 @@ export const saveAsJSON = async (
   });
 
   const fileHandle = await fileSave(blob, {
-    name: appState.name,
+    name,
     extension: "excalidraw",
     description: "Excalidraw file",
     fileHandle: isImageFileHandle(appState.fileHandle)
@@ -98,12 +100,7 @@ export const loadFromJSON = async (
     // gets resolved. Else, iOS users cannot open `.excalidraw` files.
     // extensions: ["json", "excalidraw", "png", "svg"],
   });
-  return loadFromBlob(
-    await normalizeFile(file),
-    localAppState,
-    localElements,
-    file.handle,
-  );
+  return loadFromBlob(file, localAppState, localElements, file.handle);
 };
 
 export const isValidExcalidrawData = (data?: {
@@ -132,7 +129,7 @@ export const serializeLibraryAsJSON = (libraryItems: LibraryItems) => {
   const data: ExportedLibraryData = {
     type: EXPORT_DATA_TYPES.excalidrawLibrary,
     version: VERSIONS.excalidrawLibrary,
-    source: EXPORT_SOURCE,
+    source: getExportSource(),
     libraryItems,
   };
   return JSON.stringify(data, null, 2);

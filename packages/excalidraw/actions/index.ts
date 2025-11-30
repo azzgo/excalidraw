@@ -18,6 +18,7 @@ export {
   actionChangeFontFamily,
   actionChangeTextAlign,
   actionChangeVerticalAlign,
+  actionChangeArrowProperties,
 } from "./actionProperties";
 
 export {
@@ -30,6 +31,8 @@ export {
   actionToggleTheme,
 } from "./actionCanvas";
 
+export { actionSetEmbeddableAsActiveTool } from "./actionEmbeddable";
+
 export { actionFinalize } from "./actionFinalize";
 
 export {
@@ -41,11 +44,7 @@ export {
 } from "./actionExport";
 
 export { actionCopyStyles, actionPasteStyles } from "./actionStyles";
-export {
-  actionToggleCanvasMenu,
-  actionToggleEditMenu,
-  actionShortcuts,
-} from "./actionMenu";
+export { actionShortcuts } from "./actionMenu";
 
 export { actionGroup, actionUngroup } from "./actionGroup";
 
@@ -83,6 +82,10 @@ export { actionToggleObjectsSnapMode } from "./actionToggleObjectsSnapMode";
 
 export { actionToggleStats } from "./actionToggleStats";
 export { actionUnbindText, actionBindText } from "./actionBoundText";
-export { actionLink } from "../element/Hyperlink";
+export { actionLink } from "./actionLink";
 export { actionToggleElementLock } from "./actionElementLock";
 export { actionToggleLinearEditor } from "./actionLinearEditor";
+
+export { actionToggleSearchMenu } from "./actionToggleSearchMenu";
+
+export { actionToggleCropEditor } from "./actionCropEditor";
