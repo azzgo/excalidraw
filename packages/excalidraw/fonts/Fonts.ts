@@ -212,6 +212,12 @@ export class Fonts {
     fontFamilies: Array<ExcalidrawTextElement["fontFamily"]>,
     charsPerFamily: Record<number, Set<string>>,
   ) {
+    // CSP compliance: Skip font CDN loading if disabled (for Chrome extensions)
+    if (window.DISABLE_FONT_CDN) {
+      console.log('[Excalidraw] Font CDN loading is disabled');
+      return [];
+    }
+
     // add all registered font faces into the `document.fonts` (if not added already)
     for (const { fontFaces, metadata } of Fonts.registered.values()) {
       // skip registering font faces for local fonts (i.e. Helvetica)
@@ -237,6 +243,11 @@ export class Fonts {
     fontFamilies: Array<ExcalidrawTextElement["fontFamily"]>,
     charsPerFamily: Record<number, Set<string>>,
   ): Generator<Promise<void | readonly [number, FontFace[]]>> {
+    // CSP compliance: Skip font CDN loading if disabled (for Chrome extensions)
+    if (window.DISABLE_FONT_CDN) {
+      return;
+    }
+
     for (const [index, fontFamily] of fontFamilies.entries()) {
       const font = getFontString({
         fontFamily,

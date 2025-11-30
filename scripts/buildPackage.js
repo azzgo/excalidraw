@@ -42,6 +42,13 @@ function buildDev(config) {
     sourcemap: true,
     define: {
       "import.meta.env": JSON.stringify(ENV_VARS.development),
+      // Inject CSP compliance flags as global window properties
+      "window.DISABLE_EMBEDDED": JSON.stringify(
+        ENV_VARS.development.DISABLE_EMBEDDED === "true"
+      ),
+      "window.DISABLE_FONT_CDN": JSON.stringify(
+        ENV_VARS.development.DISABLE_FONT_CDN === "true"
+      ),
     },
   });
 }
@@ -52,6 +59,13 @@ function buildProd(config) {
     minify: true,
     define: {
       "import.meta.env": JSON.stringify(ENV_VARS.production),
+      // Inject CSP compliance flags as global window properties
+      "window.DISABLE_EMBEDDED": JSON.stringify(
+        ENV_VARS.production.DISABLE_EMBEDDED === "true"
+      ),
+      "window.DISABLE_FONT_CDN": JSON.stringify(
+        ENV_VARS.production.DISABLE_FONT_CDN === "true"
+      ),
     },
   });
 }

@@ -13,6 +13,15 @@ export default defineConfig(({ mode }) => {
   const envVars = loadEnv(mode, `../`);
   // https://vitejs.dev/config/
   return {
+    define: {
+      // Inject CSP compliance flags as global window properties
+      "window.DISABLE_EMBEDDED": JSON.stringify(
+        envVars.DISABLE_EMBEDDED === "true"
+      ),
+      "window.DISABLE_FONT_CDN": JSON.stringify(
+        envVars.DISABLE_FONT_CDN === "true"
+      ),
+    },
     server: {
       port: Number(envVars.VITE_APP_PORT || 3000),
       // open the browser

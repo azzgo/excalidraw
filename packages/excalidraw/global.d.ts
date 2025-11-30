@@ -5,6 +5,8 @@ interface Window {
   EXCALIDRAW_THROTTLE_RENDER: boolean | undefined;
   DEBUG_FRACTIONAL_INDICES: boolean | undefined;
   EXCALIDRAW_EXPORT_SOURCE: string;
+  DISABLE_EMBEDDED: boolean | undefined;
+  DISABLE_FONT_CDN: boolean | undefined;
   gtag: Function;
   sa_event: Function;
   fathom: { trackEvent: Function };
