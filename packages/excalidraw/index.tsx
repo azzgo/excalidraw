@@ -112,6 +112,7 @@ const ExcalidrawBase = (props: ExcalidrawProps) => {
     aiEnabled,
     showDeprecatedFonts,
     renderScrollbars,
+    onReset,
     viewportStatusFrame,
     currentUserControls,
     imageOptions,
@@ -253,6 +254,7 @@ const ExcalidrawBase = (props: ExcalidrawProps) => {
           aiEnabled={aiEnabled !== false}
           showDeprecatedFonts={showDeprecatedFonts}
           renderScrollbars={renderScrollbars}
+          onReset={onReset}
           viewportStatusFrame={viewportStatusFrame}
           currentUserControls={currentUserControls}
           imageOptions={normalizedImageOptions}
@@ -546,3 +548,4 @@ export function useExcalidrawStateValue(
 export { _useOnAppStateChange as useOnExcalidrawStateChange };
 
 export { applyDarkModeFilter, getStrokeWidthByKey };
+export { initFontConfig } from "./fonts";

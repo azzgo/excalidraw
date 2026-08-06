@@ -175,6 +175,13 @@ export const getEmbedLink = (
     return null;
   }
 
+  // CSP compliance: skip all embed branches (Twitter/Gist/Google Drive/
+  // YouTube/Vimeo/Figma/MSForms/ValTown/GIPHY/Reddit/generic iframe) when
+  // DISABLE_EMBEDDED is set, so no embed iframe/card data is produced
+  if ((window as any).DISABLE_EMBEDDED) {
+    return null;
+  }
+
   if (embeddedLinkCache.has(link)) {
     return embeddedLinkCache.get(link)!;
   }
@@ -487,7 +494,8 @@ export const maybeParseEmbedSrc = (str: string): string => {
     return gistMatch[1];
   }
 
-  if (RE_GIPHY.test(str)) {
+  // CSP compliance: skip GIPHY embed conversion when DISABLE_EMBEDDED is set
+  if (!(window as any).DISABLE_EMBEDDED && RE_GIPHY.test(str)) {
     return `https://giphy.com/embed/${RE_GIPHY.exec(str)![1]}`;
   }
 

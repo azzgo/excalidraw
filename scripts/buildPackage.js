@@ -18,6 +18,16 @@ const ENV_VARS = {
   },
 };
 
+// CSP/privacy: strip AI-service related env vars (e.g. VITE_APP_AI_BACKEND)
+// so no hardcoded AI service URLs end up in the package dist
+for (const mode of Object.values(ENV_VARS)) {
+  for (const key of Object.keys(mode)) {
+    if (key.includes("AI")) {
+      delete mode[key];
+    }
+  }
+}
+
 // Resolve a relative path from the source file's directory
 const resolveRelativePath = (importPath, sourceFile) => {
   const sourceDir = path.dirname(sourceFile);
@@ -73,13 +83,15 @@ const getConfig = (outdir) => ({
   chunkNames: "[dir]/[name]-[hash]",
   alias: {
     "@excalidraw/utils": path.resolve(__dirname, "../packages/utils/src"),
+    "@excalidraw/common": path.resolve(__dirname, "../packages/common/src"),
+    "@excalidraw/element": path.resolve(__dirname, "../packages/element/src"),
+    "@excalidraw/math": path.resolve(__dirname, "../packages/math/src"),
+    "@excalidraw/fractional-indexing": path.resolve(
+      __dirname,
+      "../packages/fractional-indexing/src",
+    ),
   },
-  external: [
-    "@excalidraw/common",
-    "@excalidraw/element",
-    "@excalidraw/math",
-    "@excalidraw/fractional-indexing",
-  ],
+  external: [],
   loader: {
     ".woff2": "file",
   },

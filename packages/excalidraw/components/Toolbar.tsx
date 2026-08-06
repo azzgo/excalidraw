@@ -123,15 +123,17 @@ const ExtraToolsDropdown = ({
         >
           {t("toolBar.frame")}
         </DropdownMenu.Item>
-        <DropdownMenu.Item
-          onSelect={() => app.setActiveTool({ type: "embeddable" })}
-          icon={EmbedIcon}
-          data-testid="toolbar-embeddable"
-          selected={embeddableToolSelected}
-          disabled={isToolButtonDisabled(app, "embeddable")}
-        >
-          {t("toolBar.embeddable")}
-        </DropdownMenu.Item>
+        {!(window as any).DISABLE_EMBEDDED && (
+          <DropdownMenu.Item
+            onSelect={() => app.setActiveTool({ type: "embeddable" })}
+            icon={EmbedIcon}
+            data-testid="toolbar-embeddable"
+            selected={embeddableToolSelected}
+            disabled={isToolButtonDisabled(app, "embeddable")}
+          >
+            {t("toolBar.embeddable")}
+          </DropdownMenu.Item>
+        )}
         <DropdownMenu.Item
           onSelect={() => app.setActiveTool({ type: "autoshape" })}
           icon={drawShapeToolIcon}

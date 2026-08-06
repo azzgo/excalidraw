@@ -811,6 +811,7 @@ export interface ExcalidrawProps {
     data: ClipboardData,
     event: ClipboardEvent | null,
   ) => Promise<boolean> | boolean;
+  onReset?: () => void;
   /**
    * Called when element(s) are duplicated so you can listen or modify as
    * needed.

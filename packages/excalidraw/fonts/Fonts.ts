@@ -41,8 +41,31 @@ import { LiberationFontFaces } from "./Liberation";
 import { LilitaFontFaces } from "./Lilita";
 import { NunitoFontFaces } from "./Nunito";
 import { VirgilFontFaces } from "./Virgil";
-import { XiaolaiFontFaces } from "./Xiaolai";
+// import { XiaolaiFontFaces } from "./Xiaolai";
 
+export interface FontConfig {
+  /**
+   * Hand-drawn style font (e.g., Excalifont)
+   * @default Excalifont
+   */
+  handDrawn?: ExcalidrawFontFaceDescriptor[];
+  /**
+   * Normal sans-serif font (e.g., Nunito)
+   * @default Nunito
+   */
+  normal?: ExcalidrawFontFaceDescriptor[];
+  /**
+   * Monospace code font (e.g., Comic Shanns)
+   * @default Comic Shanns
+   */
+  code?: ExcalidrawFontFaceDescriptor[];
+}
+
+let fontConfig: FontConfig | undefined;
+
+export const initFontConfig = (_fontConfig: FontConfig) => {
+  fontConfig = _fontConfig;
+};
 export class Fonts {
   // it's ok to track fonts across multiple instances only once, so let's use
   // a static member to reduce memory footprint
@@ -347,8 +370,8 @@ export class Fonts {
       this.registered.set(fontFamily, {
         metadata,
         fontFaces: fontFacesDecriptors.map(
-          ({ uri, descriptors }) =>
-            new ExcalidrawFontFace(family, uri, descriptors),
+          ({ uri, descriptors, buffer }) =>
+            new ExcalidrawFontFace(family, uri, buffer, descriptors),
         ),
       });
     }
@@ -383,18 +406,27 @@ export class Fonts {
     };
 
     init("Cascadia", ...CascadiaFontFaces);
-    init("Comic Shanns", ...ComicShannsFontFaces);
-    init("Excalifont", ...ExcalifontFontFaces);
+    init(
+      "Comic Shanns",
+      ...(fontConfig?.code ? fontConfig?.code : ComicShannsFontFaces),
+    );
+    init(
+      "Excalifont",
+      ...(fontConfig?.handDrawn ? fontConfig.handDrawn : ExcalifontFontFaces),
+    );
     // keeping for backwards compatibility reasons, uses system font (Helvetica on MacOS, Arial on Win)
     init("Helvetica", ...HelveticaFontFaces);
     // used for server-side pdf & png export instead of helvetica (technically does not need metrics, but kept in for consistency)
     init("Liberation Sans", ...LiberationFontFaces);
     init("Lilita One", ...LilitaFontFaces);
-    init("Nunito", ...NunitoFontFaces);
+    init(
+      "Nunito",
+      ...(fontConfig?.normal ? fontConfig.normal : NunitoFontFaces),
+    );
     init("Virgil", ...VirgilFontFaces);
 
     // fallback font faces
-    init(CJK_HAND_DRAWN_FALLBACK_FONT, ...XiaolaiFontFaces);
+    // init(CJK_HAND_DRAWN_FALLBACK_FONT, ...XiaolaiFontFaces);
     init(WINDOWS_EMOJI_FALLBACK_FONT, ...EmojiFontFaces);
 
     Fonts._initialized = true;
@@ -466,5 +498,6 @@ export class Fonts {
 
 export interface ExcalidrawFontFaceDescriptor {
   uri: string;
+  buffer?: ArrayBuffer;
   descriptors?: FontFaceDescriptors;
 }

@@ -2020,32 +2020,46 @@ class App extends React.Component<AppProps, AppState> {
                       transform: `scale(${1 / embeddableViewportScale})`,
                     }}
                   >
-                    {(isEmbeddableElement(el)
-                      ? this.props.renderEmbeddable?.(el, this.state)
-                      : null) ?? (
-                      <iframe
-                        ref={(ref) => this.cacheEmbeddableRef(el, ref)}
+                    {(window as any).DISABLE_EMBEDDED ? (
+                      <a
                         className="excalidraw__embeddable"
-                        srcDoc={
-                          src?.type === "document"
-                            ? src.srcdoc(this.state.theme)
-                            : undefined
-                        }
-                        src={
-                          src?.type !== "document" ? src?.link ?? "" : undefined
-                        }
-                        // https://stackoverflow.com/q/18470015
-                        scrolling="no"
-                        referrerPolicy="no-referrer-when-downgrade"
-                        title="Excalidraw Embedded Content"
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                        allowFullScreen={true}
-                        sandbox={`${
-                          src?.sandbox?.allowSameOrigin
-                            ? "allow-same-origin"
-                            : ""
-                        } allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-presentation allow-downloads`}
-                      />
+                        href={normalizeLink(el.link || "")}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title={el.link || ""}
+                      >
+                        {el.link}
+                      </a>
+                    ) : (
+                      (isEmbeddableElement(el)
+                        ? this.props.renderEmbeddable?.(el, this.state)
+                        : null) ?? (
+                        <iframe
+                          ref={(ref) => this.cacheEmbeddableRef(el, ref)}
+                          className="excalidraw__embeddable"
+                          srcDoc={
+                            src?.type === "document"
+                              ? src.srcdoc(this.state.theme)
+                              : undefined
+                          }
+                          src={
+                            src?.type !== "document"
+                              ? src?.link ?? ""
+                              : undefined
+                          }
+                          // https://stackoverflow.com/q/18470015
+                          scrolling="no"
+                          referrerPolicy="no-referrer-when-downgrade"
+                          title="Excalidraw Embedded Content"
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                          allowFullScreen={true}
+                          sandbox={`${
+                            src?.sandbox?.allowSameOrigin
+                              ? "allow-same-origin"
+                              : ""
+                          } allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-presentation allow-downloads`}
+                        />
+                      )
                     )}
                   </div>
                 </div>
@@ -3444,6 +3458,7 @@ class App extends React.Component<AppProps, AppState> {
       }));
       this.resetStore();
       this.resetHistory();
+      this.props?.onReset?.();
     },
   );
 

@@ -14,12 +14,23 @@ export class ExcalidrawFontFace {
       : "@excalidraw/excalidraw" // fallback to the latest package version (i.e. for app)
   }/dist/prod/`;
 
-  constructor(family: string, uri: string, descriptors?: FontFaceDescriptors) {
-    this.urls = ExcalidrawFontFace.createUrls(uri);
-
-    const sources = this.urls
-      .map((url) => `url(${url}) ${ExcalidrawFontFace.getFormat(url)}`)
-      .join(", ");
+  constructor(
+    family: string,
+    uri: string,
+    buffer?: ArrayBuffer,
+    descriptors?: FontFaceDescriptors,
+  ) {
+    this.urls = buffer ? [] : ExcalidrawFontFace.createUrls(uri);
+    let sources: string | BufferSource;
+    if (buffer) {
+      sources = buffer;
+    } else if (typeof uri === "string" && uri.startsWith("local-font:")) {
+      sources = `local(${uri.replace(/^local-font:/, "")})`;
+    } else {
+      sources = this.urls
+        .map((url) => `url(${url}) ${ExcalidrawFontFace.getFormat(url)}`)
+        .join(", ");
+    }
 
     this.fontFace = new FontFace(family, sources, {
       display: "swap",
@@ -161,6 +172,10 @@ export class ExcalidrawFontFace {
         const normalizedBaseUrl = this.normalizeBaseUrl(path);
         urls.push(new URL(assetUrl, normalizedBaseUrl));
       });
+    }
+
+    if (window.DISABLE_FONT_CDN) {
+      return urls;
     }
 
     // fallback url for bundled fonts
